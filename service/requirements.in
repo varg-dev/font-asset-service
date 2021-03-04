@@ -1,0 +1,7 @@
+argparse
+celery
+fastapi
+pydantic
+uvicorn
+python-multipart
+aiofiles

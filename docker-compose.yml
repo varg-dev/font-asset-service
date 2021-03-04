@@ -1,0 +1,42 @@
+version: "3.0"
+
+services:
+  service:
+    env_file:
+      - ".docker-compose-env"
+    build:
+      context: 'service'
+      dockerfile: 'Dockerfile'
+    command: [ "uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "9000" ]
+    ports:
+      - "9000"
+    tmpfs:
+      - /tmp/font-assets-cache
+    volumes:
+      - assets-data:/data/results
+
+  console:
+    env_file:
+      - ".docker-compose-env"
+    build:
+      context: 'service'
+      dockerfile: 'Dockerfile'
+    command: [ "/bin/sh" ]
+    tmpfs:
+      - /tmp/font-assets-cache
+
+  font-asset-creation:
+    env_file:
+      - ".docker-compose-env"
+    build:
+      context: 'service'
+      dockerfile: 'Dockerfile'
+    entrypoint: [ "python3", "font-asset-creation.py" ]
+    tmpfs:
+      - /tmp/font-assets-cache
+    volumes:
+      - ./assets/:/data/results
+
+volumes:
+  assets-data:
+    driver: local

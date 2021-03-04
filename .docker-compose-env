@@ -1,0 +1,2 @@
+COMPOSE_PROJECT_NAME=font-assets
+PYTHONPYCACHEPREFIX="/opt/cpython-cache/"
