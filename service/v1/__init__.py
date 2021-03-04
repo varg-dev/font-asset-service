@@ -64,16 +64,22 @@ async def api_get_fonts(response: Response):
     for entry in os.scandir(directory):
         if entry.is_file():
             filename, extension = os.path.splitext(os.path.basename(entry.path))
-            result.append({ 'identifier': filename, 'format': extension })
+            result.append({
+                'identifier': filename+extension,
+                'format': extension,
+                'url': f'/fonts/{filename+extension}'
+            })
     
     response.status_code = status.HTTP_200_OK
     
     return result
 
+
 @router.head("/fonts", tags=["fonts"])
 async def api_head_fonts(response: Response):
     
     response.status_code = status.HTTP_200_OK
+
 
 @router.post("/fonts", tags=["fonts"])
 async def api_post_fonts(response: Response, font: FontModel = Depends(FontModel), file: UploadFile = File(...)):
@@ -97,3 +103,38 @@ async def api_post_fonts(response: Response, font: FontModel = Depends(FontModel
 
     response.status_code = status.HTTP_201_CREATED
     return {}
+
+
+@router.head("/fonts/{identifier}", tags=["fonts"])
+async def api_head_font(identifier: str, response: Response):
+
+    path = os.path.join(fonts_dir(), identifier)
+
+    if not os.path.exists(path):
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {}
+    
+    response.status_code = status.HTTP_200_OK
+
+
+@router.head("/fonts/{identifier}", tags=["fonts"])
+async def api_head_font(identifier: str, response: Response):
+
+    path = os.path.join(fonts_dir(), identifier)
+
+    if not os.path.exists(path):
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {}
+    
+    response.status_code = status.HTTP_200_OK
+
+    filename, extension = os.path.splitext(os.path.basename(path))
+    
+    return {
+        'identifier': filename+extension,
+        'format': extension,
+        'url': f'/fonts/{filename+extension}'
+    }
+
+
+# ASSETS
