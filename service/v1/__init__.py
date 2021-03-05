@@ -1,13 +1,14 @@
 import os
 import shutil
 from datetime import timedelta
-from typing import Optional
+from typing import Optional, List, Union
 import subprocess
 
 import json
+import hashlib
+import base64
 
 from pydantic import BaseModel
-from typing import List
 
 from fastapi import APIRouter, Response, BackgroundTasks, File, UploadFile
 from fastapi import HTTPException, status, Depends
@@ -37,23 +38,46 @@ def fonts_dir():
     return directory
 
 
+def make_hash_sha256(o):
+    hasher = hashlib.sha256()
+    hasher.update(repr(make_hashable(o)).encode())
+    return hasher.hexdigest()
+
+
+def make_hashable(o):
+    if isinstance(o, (tuple, list)):
+        return tuple((make_hashable(e) for e in o))
+
+    if isinstance(o, dict):
+        return tuple(sorted((k,make_hashable(v)) for k,v in o.items()))
+
+    if isinstance(o, (set, frozenset)):
+        return tuple(sorted(make_hashable(e) for e in o))
+
+    return o
+
+
 class FontModel(BaseModel):
     identifier: Optional[str] = ''
     format: Optional[str] = ''
 
-class AssetParameterModel(BaseModel):
-    type: str = '' # either 'atlas' or 'distancefield'
+
+class AtlasAssetParameterModel(BaseModel):
     algorithm: Optional[str] = 'parabola' # either 'parabola' or 'deadrec'
-    # image: Optional[str] = None
-    outfile: str
-    dynamicrange: Tuple[int, int]
-    distfield: Optional[str] = 'sehlf' # either 'shelf' or 'maxrects'
+    dynamicrange: Optional[List[int]] = []
+    distfield: Optional[str] = 'shelf' # either 'shelf' or 'maxrects'
     glyph: Optional[str] = ''
     charcode: Optional[str] = ''
     ascii: Optional[str] = ''
     fontsize: Optional[int] = 14
-    fontname: Optional[str] = ''
-    fontpath: Optional[str] = ''
+    padding: Optional[int] = 0
+    downsampling: Optional[str] = 'center' # either 'center', 'average', or 'min'
+
+
+# TODO: implement
+# class DistanceFieldAssetParameterModel(BaseModel):
+#     algorithm: Optional[str] = 'parabola' # either 'parabola' or 'deadrec'
+#     dynamicrange: Optional[List[int]] = []
 
 
 # ROOT
@@ -237,57 +261,70 @@ async def api_get_font_asset(identifier: str, asset_parameter_hash: str, respons
         asset_info = assets_info[asset_type]
         result.append({
             'type': asset_type,
-            'arguments': asset_info['arguments'],
             'url': f'/fonts/{identifier}/{asset_parameter_hash}/{asset_type}',
         })
 
-    return result
+    return {
+        'url': f'/fonts/{identifier}/{asset_parameter_hash}',
+        'hash': asset_parameter_hash,
+        'arguments': assets_info['arguments'],
+        'assets': result
+    }
 
 
 @router.post("/fonts/{identifier}", tags=["assets"])
-async def api_get_font_asset(identifier: str, asset_parameters: AssetParameterModel = Depends(AssetParameterModel), response: Response):
+async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetParameterModel, response: Response, force: Optional[bool] = False):
+
+    asset_parameter_hash = make_hash_sha256(asset_parameters.dict())
 
     path = os.path.join(fonts_dir(), identifier)
 
     if not os.path.exists(path):
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return {}
+        os.mkdir(path)
     
     path = os.path.join(path, asset_parameter_hash)
     
-    if not os.path.exists(path):
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return {}
+    if os.path.exists(path):
+        if force:
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            response.status_code = status.HTTP_409_CONFLICT
+            return {}
     
+    os.mkdir(path)
+
     path = os.path.join(path, 'metainfo.json')
     
-    if not os.path.exists(path):
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return {}
+    metainfo = {
+        'arguments': asset_parameters.dict(),
+        'assets': []
+    }
+
+    # Call llassetgen
+
+    # Collect results
+
+    # Store files
+
+    with open(path, 'w') as f:
+        json.dump(metainfo, f)
     
-    metainfo = {}
-    with open(path, 'r') as f:
-        metainfo = json.load(f)
-    
-    if not 'assets' in metainfo:
-        response.status_code = status.HTTP_409_CONFLICT
-        return {}
-    
-    assets_info = metainfo['assets']
-    
-    response.status_code = status.HTTP_200_OK
+    response.status_code = status.HTTP_201_CREATED
 
     result = []
-
-    for asset_type in assets_info:
-        asset_info = assets_info[asset_type]
+    for asset_type in metainfo['assets']:
+        asset_info = metainfo['assets'][asset_type]
         result.append({
             'type': asset_type,
-            'arguments': asset_info['arguments'],
             'url': f'/fonts/{identifier}/{asset_parameter_hash}/{asset_type}',
         })
 
-    return result
+    return {
+        'url': f'/fonts/{identifier}/{asset_parameter_hash}',
+        'hash': asset_parameter_hash,
+        'arguments': metainfo['arguments'],
+        'assets': result
+    }
 
 
 # ASSETS DOWNLOAD

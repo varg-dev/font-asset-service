@@ -3,4 +3,4 @@ version: "3.0"
 services:
   service:
     ports:
-      - "9000:9000"
+      - "8192:8192"

@@ -7,9 +7,9 @@ services:
     build:
       context: 'service'
       dockerfile: 'Dockerfile'
-    command: [ "uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "9000" ]
+    command: [ "uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "8192" ]
     ports:
-      - "9000"
+      - "8192"
     tmpfs:
       - /tmp/font-assets-cache
     volumes:
