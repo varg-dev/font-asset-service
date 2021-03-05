@@ -353,8 +353,8 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
         arguments.extend([ '--downsampling', str(asset_parameters.downsampling_factor) ])
     if asset_parameters.downsampling:
         arguments.extend([ '--dsalgo', asset_parameters.downsampling ])
-    if asset_parameters.dynamicrange and len(asset_parameters.dynamicrange[0]) >= 2:
-        arguments.extend([ '--dynamicrange', f'[{str(asset_parameters.dynamicrange[0])},{str(asset_parameters.dynamicrange[1])}]' ])
+    if asset_parameters.dynamicrange and len(asset_parameters.dynamicrange) >= 2:
+        arguments.extend([ '--dynamicrange', str(asset_parameters.dynamicrange[0]), str(asset_parameters.dynamicrange[1]) ])
     arguments.extend([ distancefield_filename ])
 
     print(' '.join(arguments), flush=True)
