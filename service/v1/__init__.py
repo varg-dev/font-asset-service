@@ -2,6 +2,7 @@ import os
 import shutil
 from datetime import timedelta
 from typing import Optional
+import subprocess
 
 import json
 
@@ -37,8 +38,22 @@ def fonts_dir():
 
 
 class FontModel(BaseModel):
-    identifier: str = ''
-    format: str = ''
+    identifier: Optional[str] = ''
+    format: Optional[str] = ''
+
+class AssetParameterModel(BaseModel):
+    type: str = '' # either 'atlas' or 'distancefield'
+    algorithm: Optional[str] = 'parabola' # either 'parabola' or 'deadrec'
+    # image: Optional[str] = None
+    outfile: str
+    dynamicrange: Tuple[int, int]
+    distfield: Optional[str] = 'sehlf' # either 'shelf' or 'maxrects'
+    glyph: Optional[str] = ''
+    charcode: Optional[str] = ''
+    ascii: Optional[str] = ''
+    fontsize: Optional[int] = 14
+    fontname: Optional[str] = ''
+    fontpath: Optional[str] = ''
 
 
 # ROOT
@@ -185,6 +200,52 @@ async def api_head_font_asset(identifier: str, asset_parameter_hash: str, respon
 
 @router.get("/fonts/{identifier}/{asset_parameter_hash}", tags=["assets"])
 async def api_get_font_asset(identifier: str, asset_parameter_hash: str, response: Response):
+
+    path = os.path.join(fonts_dir(), identifier)
+
+    if not os.path.exists(path):
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {}
+    
+    path = os.path.join(path, asset_parameter_hash)
+    
+    if not os.path.exists(path):
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {}
+    
+    path = os.path.join(path, 'metainfo.json')
+    
+    if not os.path.exists(path):
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return {}
+    
+    metainfo = {}
+    with open(path, 'r') as f:
+        metainfo = json.load(f)
+    
+    if not 'assets' in metainfo:
+        response.status_code = status.HTTP_409_CONFLICT
+        return {}
+    
+    assets_info = metainfo['assets']
+    
+    response.status_code = status.HTTP_200_OK
+
+    result = []
+
+    for asset_type in assets_info:
+        asset_info = assets_info[asset_type]
+        result.append({
+            'type': asset_type,
+            'arguments': asset_info['arguments'],
+            'url': f'/fonts/{identifier}/{asset_parameter_hash}/{asset_type}',
+        })
+
+    return result
+
+
+@router.post("/fonts/{identifier}", tags=["assets"])
+async def api_get_font_asset(identifier: str, asset_parameters: AssetParameterModel = Depends(AssetParameterModel), response: Response):
 
     path = os.path.join(fonts_dir(), identifier)
 
