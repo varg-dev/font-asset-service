@@ -24,6 +24,8 @@ services:
     command: [ "/bin/sh" ]
     tmpfs:
       - /tmp/font-assets-cache
+    volumes:
+      - assets-data:/data/results
 
   font-asset-creation:
     env_file:

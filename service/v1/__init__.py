@@ -9,7 +9,7 @@ import base64
 
 from pydantic import BaseModel
 
-from fastapi import APIRouter, Response, File, UploadFile
+from fastapi import APIRouter, Response, File, UploadFile, Depends
 from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
 
@@ -83,15 +83,16 @@ class FontModel(BaseModel):
 
 
 class AtlasAssetParameterModel(BaseModel):
-    algorithm: Optional[str] = 'parabola' # either 'parabola' or 'deadrec'
-    dynamicrange: Optional[List[int]] = []
-    distfield: Optional[str] = 'shelf' # either 'shelf' or 'maxrects'
+    distfield: Optional[str] = 'parabola' # either 'parabola' or 'deadrec'
+    packing: Optional[str] = 'shelf' # either 'shelf' or 'maxrects'
     glyph: Optional[str] = ''
     charcode: Optional[str] = ''
-    ascii: Optional[str] = ''
-    fontsize: Optional[int] = 14
+    ascii: Optional[bool] = True
+    fontsize: Optional[int] = 128
     padding: Optional[int] = 0
+    downsampling_factor: Optional[int] = 1
     downsampling: Optional[str] = 'center' # either 'center', 'average', or 'min'
+    dynamicrange: Optional[List[int]] = []
 
 
 # TODO: implement
@@ -141,17 +142,17 @@ async def api_head_fonts(response: Response):
 
 
 @router.post("/fonts", tags=["fonts"])
-async def api_post_fonts(response: Response, font: FontModel, file: UploadFile = File(...)):
+async def api_post_fonts(response: Response, font_details: Optional[FontModel] = Depends(FontModel), file: UploadFile = File(...)):
     
     filename, extension = os.path.splitext(os.path.basename(file.filename))
 
-    if not font.identifier:
-        font.identifier = filename
+    if not font_details.identifier:
+        font_details.identifier = filename
     
-    if not font.format:
-        font.format = extension
+    if not font_details.format:
+        font_details.format = extension
     
-    path = os.path.join(fonts_dir(), font.identifier + font.format)
+    path = os.path.join(fonts_dir(), font_details.identifier + font_details.format)
 
     if os.path.exists(path):
         response.status_code = status.HTTP_409_CONFLICT
@@ -161,7 +162,12 @@ async def api_post_fonts(response: Response, font: FontModel, file: UploadFile =
         shutil.copyfileobj(file.file, f)
 
     response.status_code = status.HTTP_201_CREATED
-    return {}
+    return {
+        'identifier': font_details.identifier + font_details.format,
+        'format': font_details.format,
+        'assets': {},
+        'url': f'/fonts/{font_details.identifier + font_details.format}'
+    }
 
 
 @router.head("/fonts/{identifier}", tags=["fonts"])
@@ -190,13 +196,15 @@ async def api_get_font(identifier: str, response: Response):
     filename, extension = os.path.splitext(os.path.basename(path))
 
     result = []
-    for entry in os.scandir(path):
-        if entry.is_dir():
-            basename = os.path.basename(entry.path)
-            result.append({
-                'identifier': basename,
-                'url': f'/fonts/{identifier}/{basename}'
-            })
+    assets_path = path + '_assets'
+    if os.path.exists(assets_path):
+        for entry in os.scandir(assets_path):
+            if entry.is_dir():
+                basename = os.path.basename(entry.path)
+                result.append({
+                    'identifier': basename,
+                    'url': f'/fonts/{identifier}/{basename}'
+                })
     
     response.status_code = status.HTTP_200_OK
     
@@ -213,7 +221,7 @@ async def api_get_font(identifier: str, response: Response):
 @router.head("/fonts/{identifier}/{asset_parameter_hash}", tags=["assets"])
 async def api_head_font_asset(identifier: str, asset_parameter_hash: str, response: Response):
 
-    path = os.path.join(fonts_dir(), identifier)
+    path = os.path.join(fonts_dir(), identifier + '_assets')
 
     if not os.path.exists(path):
         response.status_code = status.HTTP_404_NOT_FOUND
@@ -245,7 +253,7 @@ async def api_head_font_asset(identifier: str, asset_parameter_hash: str, respon
 @router.get("/fonts/{identifier}/{asset_parameter_hash}", tags=["assets"])
 async def api_get_font_asset(identifier: str, asset_parameter_hash: str, response: Response):
 
-    path = os.path.join(fonts_dir(), identifier)
+    path = os.path.join(fonts_dir(), identifier + '_assets')
 
     if not os.path.exists(path):
         response.status_code = status.HTTP_404_NOT_FOUND
@@ -278,7 +286,6 @@ async def api_get_font_asset(identifier: str, asset_parameter_hash: str, respons
     result = []
 
     for asset_type in assets_info:
-        asset_info = assets_info[asset_type]
         result.append({
             'type': asset_type,
             'url': f'/fonts/{identifier}/{asset_parameter_hash}/{asset_type}',
@@ -287,7 +294,7 @@ async def api_get_font_asset(identifier: str, asset_parameter_hash: str, respons
     return {
         'url': f'/fonts/{identifier}/{asset_parameter_hash}',
         'hash': asset_parameter_hash,
-        'arguments': assets_info['arguments'],
+        'arguments': metainfo['arguments'],
         'assets': result
     }
 
@@ -297,7 +304,8 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
 
     asset_parameter_hash = make_hash_sha256(asset_parameters.dict())
 
-    path = os.path.join(fonts_dir(), identifier)
+    font_path = os.path.join(fonts_dir(), identifier)
+    path = os.path.join(fonts_dir(), identifier + '_assets')
 
     if not os.path.exists(path):
         os.mkdir(path)
@@ -313,27 +321,68 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
     
     os.mkdir(path)
 
-    path = os.path.join(path, 'metainfo.json')
+    metainfo_path = os.path.join(path, 'metainfo.json')
     
     metainfo = {
         'arguments': asset_parameters.dict(),
-        'assets': []
+        'assets': {}
     }
 
     # Call llassetgen
 
-    # Collect results
+    distancefield_filename = "distancefield.png"
+    fontdescription_filename = "distancefield.fnt"
 
-    # Store files
+    llassetgen_binary = '/opt/font-assets/openll-asset-generator/build/llassetgen-cmd'
+    arguments = [ llassetgen_binary, "atlas", "--fontpath", font_path, "--fnt" ]
+    if asset_parameters.distfield:
+        arguments.extend([ '--distfield', asset_parameters.distfield ])
+    if asset_parameters.packing:
+        arguments.extend([ '--packing', asset_parameters.packing ])
+    if asset_parameters.glyph:
+        arguments.extend([ '--glyph', asset_parameters.glyph ])
+    if asset_parameters.charcode:
+        arguments.extend([ '--charcode', asset_parameters.charcode ])
+    if asset_parameters.ascii:
+        arguments.extend([ '--ascii' ])
+    if asset_parameters.fontsize:
+        arguments.extend([ '--fontsize', str(asset_parameters.fontsize) ])
+    if asset_parameters.padding:
+        arguments.extend([ '--padding', str(asset_parameters.padding) ])
+    if asset_parameters.downsampling_factor and asset_parameters.downsampling_factor > 1:
+        arguments.extend([ '--downsampling', str(asset_parameters.downsampling_factor) ])
+    if asset_parameters.downsampling:
+        arguments.extend([ '--dsalgo', asset_parameters.downsampling ])
+    if asset_parameters.dynamicrange and len(asset_parameters.dynamicrange[0]) >= 2:
+        arguments.extend([ '--dynamicrange', f'[{str(asset_parameters.dynamicrange[0])},{str(asset_parameters.dynamicrange[1])}]' ])
+    arguments.extend([ distancefield_filename ])
 
-    with open(path, 'w') as f:
+    print(' '.join(arguments), flush=True)
+
+    p = subprocess.run(arguments, capture_output=True, cwd=path)
+    output = p.stdout.decode("utf-8")
+    
+    if not os.path.exists(os.path.join(path, distancefield_filename)) \
+        or not os.path.exists(os.path.join(path, fontdescription_filename)):
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return {}
+
+    metainfo['assets']['distancefield'] = {
+        'path': os.path.join(path, distancefield_filename),
+        'identifier': distancefield_filename
+    }
+    metainfo['assets']['fontdescription'] = {
+        'path': os.path.join(path, fontdescription_filename),
+        'identifier': fontdescription_filename
+    }
+
+    with open(metainfo_path, 'w') as f:
         json.dump(metainfo, f)
     
     response.status_code = status.HTTP_201_CREATED
 
     result = []
     for asset_type in metainfo['assets']:
-        asset_info = metainfo['assets'][asset_type]
         result.append({
             'type': asset_type,
             'url': f'/fonts/{identifier}/{asset_parameter_hash}/{asset_type}',
@@ -352,7 +401,7 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
 @router.head("/fonts/{identifier}/{asset_parameter_hash}/{asset_type}", tags=["assets"])
 async def api_head_font_asset_download(identifier: str, asset_parameter_hash: str, asset_type: str, response: Response):
 
-    path = os.path.join(fonts_dir(), identifier)
+    path = os.path.join(fonts_dir(), identifier + "_assets")
 
     if not os.path.exists(path):
         response.status_code = status.HTTP_404_NOT_FOUND
@@ -388,7 +437,7 @@ async def api_head_font_asset_download(identifier: str, asset_parameter_hash: st
 @router.get("/fonts/{identifier}/{asset_parameter_hash}/{asset_type}", tags=["assets"])
 async def api_get_font_asset_download(identifier: str, asset_parameter_hash: str, asset_type: str, response: Response):
 
-    path = os.path.join(fonts_dir(), identifier)
+    path = os.path.join(fonts_dir(), identifier + "_assets")
 
     if not os.path.exists(path):
         response.status_code = status.HTTP_404_NOT_FOUND
@@ -422,4 +471,4 @@ async def api_get_font_asset_download(identifier: str, asset_parameter_hash: str
     
     response.status_code = status.HTTP_200_OK
 
-    return FileResponse(asset_info.path, filename=os.path.basename(asset_info.identifier), media_type='application/octet-stream')
+    return FileResponse(asset_info['path'], filename=os.path.basename(asset_info['identifier']), media_type='application/octet-stream')
