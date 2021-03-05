@@ -1,7 +1,6 @@
 import os
 import shutil
-from datetime import timedelta
-from typing import Optional, List, Union
+from typing import Optional, List
 import subprocess
 
 import json
@@ -10,15 +9,36 @@ import base64
 
 from pydantic import BaseModel
 
-from fastapi import APIRouter, Response, BackgroundTasks, File, UploadFile
-from fastapi import HTTPException, status, Depends
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Response, File, UploadFile
+from fastapi import HTTPException, status
+from fastapi.responses import FileResponse
 
 
 router = APIRouter()
 
+
 LLASSETGEN_DIRECTORY=os.environ.get('LLASSETGEN_DIRECTORY', '')
 RESULT_DIR=os.environ.get('RESULT_DIR', '/data/results')
+
+
+# TODO: handle system fonts
+# system_fonts_parsed = False
+# parsed_system_fonts = []
+
+# def system_fonts():
+#     global system_fonts_parsed
+#     global parsed_system_fonts
+# 
+#     if not system_fonts_parsed:
+#         system_fonts_parsed = True
+#         
+#         p = subprocess.run(["fc-list"], capture_output=True)
+#         font_list = p.stdout.decode("utf-8")
+# 
+#         print(font_list, flush=True)
+# 
+#     return parsed_system_fonts
+
 
 def results_dir():
     directory = RESULT_DIR
@@ -121,7 +141,7 @@ async def api_head_fonts(response: Response):
 
 
 @router.post("/fonts", tags=["fonts"])
-async def api_post_fonts(response: Response, font: FontModel = Depends(FontModel), file: UploadFile = File(...)):
+async def api_post_fonts(response: Response, font: FontModel, file: UploadFile = File(...)):
     
     filename, extension = os.path.splitext(os.path.basename(file.filename))
 
