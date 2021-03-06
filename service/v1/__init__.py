@@ -4,8 +4,6 @@ from typing import Optional, List
 import subprocess
 
 import json
-import hashlib
-import base64
 
 from pydantic import BaseModel
 
@@ -13,12 +11,13 @@ from fastapi import APIRouter, Response, File, UploadFile, Depends
 from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
 
+from ..helpers import *
+
 
 router = APIRouter()
 
 
 LLASSETGEN_DIRECTORY=os.environ.get('LLASSETGEN_DIRECTORY', '')
-RESULT_DIR=os.environ.get('RESULT_DIR', '/data/results')
 
 
 # TODO: handle system fonts
@@ -38,44 +37,6 @@ RESULT_DIR=os.environ.get('RESULT_DIR', '/data/results')
 #         print(font_list, flush=True)
 # 
 #     return parsed_system_fonts
-
-
-def results_dir():
-    directory = RESULT_DIR
-
-    if not os.path.exists(directory):
-        os.mkdir(directory)
-    
-    return directory
-
-
-def fonts_dir():
-    directory = os.path.join(results_dir(), 'fonts')
-
-    if not os.path.exists(directory):
-        os.mkdir(directory)
-    
-    return directory
-
-
-def make_hash_sha256(o):
-    hasher = hashlib.sha256()
-    hasher.update(repr(make_hashable(o)).encode())
-    return hasher.hexdigest()
-
-
-def make_hashable(o):
-    if isinstance(o, (tuple, list)):
-        return tuple((make_hashable(e) for e in o))
-
-    if isinstance(o, dict):
-        return tuple(sorted((k,make_hashable(v)) for k,v in o.items()))
-
-    if isinstance(o, (set, frozenset)):
-        return tuple(sorted(make_hashable(e) for e in o))
-
-    return o
-
 
 class FontModel(BaseModel):
     identifier: Optional[str] = ''
