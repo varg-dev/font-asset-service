@@ -9,7 +9,7 @@ WORKDIR /opt/font-assets
 
 # OpenLL Asset Generator
 
-RUN git clone https://github.com/cginternals/openll-asset-generator.git
+RUN git clone --depth 1 https://github.com/cginternals/openll-asset-generator.git
 
 WORKDIR /opt/font-assets/openll-asset-generator
 

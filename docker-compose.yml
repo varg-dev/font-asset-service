@@ -10,8 +10,6 @@ services:
     command: [ "uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "8192" ]
     ports:
       - "8192"
-    tmpfs:
-      - /tmp/font-assets-cache
     volumes:
       - assets-data:/data/results
 
@@ -22,8 +20,6 @@ services:
       context: 'service'
       dockerfile: 'Dockerfile'
     command: [ "/bin/sh" ]
-    tmpfs:
-      - /tmp/font-assets-cache
     volumes:
       - assets-data:/data/results
 
@@ -34,8 +30,6 @@ services:
       context: 'service'
       dockerfile: 'Dockerfile'
     entrypoint: [ "python3", "font-asset-creation.py" ]
-    tmpfs:
-      - /tmp/font-assets-cache
     volumes:
       - ./assets/:/data/results
 
