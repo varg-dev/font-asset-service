@@ -4,3 +4,5 @@ services:
   service:
     ports:
       - "127.0.0.1:8192:8192"
+    environment:
+      - CORS_ALLOWED_DOMAINS="https://fonts.varg.dev"

@@ -8,6 +8,8 @@ services:
       context: 'service'
       dockerfile: 'Dockerfile'
     command: [ "uvicorn", "service.main:app", "--host", "0.0.0.0", "--port", "8192" ]
+    environment:
+      - CORS_ALLOWED_DOMAINS="http://localhost:8192"
     ports:
       - "8192"
     volumes:

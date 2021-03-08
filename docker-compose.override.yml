@@ -4,3 +4,5 @@ services:
   service:
     ports:
       - "8192:8192"
+    environment:
+      - CORS_ALLOWED_DOMAINS="http://localhost:8192"
