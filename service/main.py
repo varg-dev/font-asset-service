@@ -17,6 +17,7 @@ app.include_router(
 origins = os.environ.get('CORS_ALLOWED_DOMAINS', '').split(';')
 
 if len(origins) > 0:
+    print('Allow CORS for following domains:', origins, flush=True)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
