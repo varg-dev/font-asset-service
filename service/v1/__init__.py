@@ -70,7 +70,7 @@ class AtlasAssetParameterModel(BaseModel):
     packing: Optional[PackingAlgorithm] = PackingAlgorithm.shelf
     glyph: Optional[str] = ''
     charcode: Optional[str] = ''
-    ascii: Optional[bool] = True
+    preset: Optional[str] = 'ascii'
     fontsize: Optional[int] = 128
     padding: Optional[int] = 0
     downsampling_factor: Optional[int] = 1
@@ -379,8 +379,8 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
         arguments.extend([ '--glyph', asset_parameters.glyph ])
     if asset_parameters.charcode:
         arguments.extend([ '--charcode', asset_parameters.charcode ])
-    if asset_parameters.ascii:
-        arguments.extend([ '--ascii' ])
+    if asset_parameters.preset:
+        arguments.extend([ '--preset', asset_parameters.preset ])
     if asset_parameters.fontsize:
         arguments.extend([ '--fontsize', str(asset_parameters.fontsize) ])
     if asset_parameters.padding:
@@ -396,7 +396,7 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
     try:
         print(' '.join(arguments), flush=True)
         p = subprocess.run(arguments, capture_output=True, check=True, cwd=path)
-    except subprocess.CalledProcessError as e::
+    except subprocess.CalledProcessError as e:
         print(e.stdout.decode("utf-8"), flush=True)
         print(e.stderr.decode("utf-8"), flush=True)
         raise HTTPException(
