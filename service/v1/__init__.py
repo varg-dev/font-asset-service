@@ -96,6 +96,11 @@ async def api_head_root(response: Response):
     response.status_code = status.HTTP_200_OK
 
 
+@router.post("/generate_parameter_hash", tags=["tooling"])
+async def api_post_generate_parameter_hash(asset_parameters: AtlasAssetParameterModel, response: Response):
+    return {'hash': make_hash_sha256(asset_parameters.dict()) }
+
+
 # FONTS
 
 @router.get("/fonts", tags=["fonts"])
@@ -317,19 +322,43 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
     
     path = os.path.join(path, asset_parameter_hash)
     
-    if os.path.exists(path):
+    metainfo_path = os.path.join(path, 'metainfo.json')
+    
+    if os.path.exists(path) and os.path.exists(metainfo_path):
         if force:
             shutil.rmtree(path, ignore_errors=True)
         else:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail='Asset already created.',
-            )
+            metainfo = {}
+            with open(metainfo_path, 'r') as f:
+                metainfo = json.load(f)
+            
+            if not 'assets' in metainfo:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail='Assets not found.',
+                )
+            
+            assets_info = metainfo['assets']
+            
+            response.status_code = status.HTTP_409_CONFLICT
+
+            result = []
+
+            for asset_type in assets_info:
+                result.append({
+                    'type': asset_type,
+                    'url': f'/fonts/{identifier}/{asset_parameter_hash}/{asset_type}',
+                })
+
+            return {
+                'url': f'/fonts/{identifier}/{asset_parameter_hash}',
+                'hash': asset_parameter_hash,
+                'arguments': metainfo['arguments'],
+                'assets': result
+            }
     
     os.mkdir(path)
 
-    metainfo_path = os.path.join(path, 'metainfo.json')
-    
     metainfo = {
         'arguments': asset_parameters.dict(),
         'assets': {}
