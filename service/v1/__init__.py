@@ -396,12 +396,12 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
     try:
         print(' '.join(arguments), flush=True)
         p = subprocess.run(arguments, capture_output=True, check=True, cwd=path)
-    except:
-        print(p.stdout.decode("utf-8"), flush=True)
-        print(p.stderr.decode("utf-8"), flush=True)
+    except subprocess.CalledProcessError as e::
+        print(e.stdout.decode("utf-8"), flush=True)
+        print(e.stderr.decode("utf-8"), flush=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=p.stderr.decode("utf-8"),
+            detail=e.stderr.decode("utf-8"),
         )
     
     if not os.path.exists(os.path.join(path, distancefield_filename)):
