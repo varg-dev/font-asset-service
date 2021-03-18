@@ -23,7 +23,8 @@ def fonts_dir():
 
 
 def make_hash_sha256(o):
-    hasher = hashlib.sha256()
+    # hasher = hashlib.sha256()
+    hasher = hashlib.md5()
     hasher.update(repr(make_hashable(o)).encode())
     return hasher.hexdigest()
 

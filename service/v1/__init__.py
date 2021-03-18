@@ -366,8 +366,12 @@ async def api_post_font_assets(identifier: str, asset_parameters: AtlasAssetPara
 
     # Call llassetgen
 
-    distancefield_filename = "distancefield.png"
-    fontdescription_filename = "distancefield.fnt"
+    identifier_wo_ext = identifier[:-4]
+    hash_shortened = asset_parameter_hash[0:8]
+    print('MOEP', identifier_wo_ext, hash_shortened)
+
+    distancefield_filename = f'{identifier_wo_ext}-{hash_shortened}.png'
+    fontdescription_filename = f'{identifier_wo_ext}-{hash_shortened}.fnt'
 
     llassetgen_binary = '/opt/font-assets/openll-asset-generator/build/llassetgen-cmd'
     arguments = [ llassetgen_binary, "atlas", "--fontpath", font_path, "--fnt" ]
