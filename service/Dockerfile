@@ -9,14 +9,14 @@ WORKDIR /opt/font-assets
 
 # OpenLL Asset Generator
 
-RUN git clone --depth 1 https://github.com/cginternals/openll-asset-generator.git
+RUN git clone --depth 1 --branch v1.1.0 https://github.com/cginternals/openll-asset-generator.git
 
 WORKDIR /opt/font-assets/openll-asset-generator
 
 RUN mkdir build
 
 WORKDIR /opt/font-assets/openll-asset-generator/build
-RUN cmake .. -DCMAKE_BUILD_TYPE=Release -DOPTION_BUILD_TESTS=Off
+RUN cmake .. -DCMAKE_BUILD_TYPE=Release -DOPTION_BUILD_TESTS=Off -DOPTION_BUILD_RENDERER=Off
 RUN make
 
 WORKDIR /opt/font-assets
