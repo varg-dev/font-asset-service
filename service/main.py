@@ -7,11 +7,11 @@ from fastapi.middleware.gzip import GZipMiddleware
 from .v1 import router as v1_router
 
 
-app = FastAPI()
+app = FastAPI(docs_url="/docs", redoc_url=None)
 
 app.include_router(
     v1_router,
-    # prefix="/v1",
+    prefix="/api",
 )
 
 
